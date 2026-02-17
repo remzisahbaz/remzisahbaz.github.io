@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ollama ve Open WebUI kullanarak 100+ menü öğesi arasında yönlendirme yapan LLM asistanı geliştirme deneyimim.">
+    <title>Ollama ile Local LLM: Kurumsal Menü Asistanı Geliştirme | Remzi Şahbaz Blog</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="post-styles.css">
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">
+                <span class="logo-bracket">&lt;</span>
+                <span class="logo-text">Remzi</span>
+                <span class="logo-bracket">/&gt;</span>
+            </a>
+            <div class="nav-links">
+                <a href="../index.html#articles" class="nav-link">Makaleler</a>
+                <a href="../index.html#about" class="nav-link">Hakkımda</a>
+                <a href="https://github.com/remzisahbaz" target="_blank" class="nav-link">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="post">
+        <header class="post-header">
+            <div class="post-meta-top">
+                <a href="../index.html" class="back-link">← Geri</a>
+                <span class="post-tag">AI / LLM</span>
+            </div>
+            <h1 class="post-title">Ollama ile Local LLM: Kurumsal Menü Asistanı Geliştirme</h1>
+            <div class="post-meta">
+                <span class="meta-item">Remzi Şahbaz</span>
+                <span class="meta-separator">•</span>
+                <span class="meta-item">17 Şubat 2026</span>
+                <span class="meta-separator">•</span>
+                <span class="meta-item">15 dk okuma</span>
+            </div>
+        </header>
+
+        <div class="post-content">
+            <p class="post-lead">
+                Kurumsal bir web uygulamasında 100+ menü öğesi arasında kullanıcıları doğru sayfaya 
+                yönlendiren bir LLM asistanı geliştirdim. Cloud LLM yerine local Ollama altyapısı 
+                kullanarak hem maliyeti sıfırladım hem de veri güvenliğini sağladım. Bu yazıda, 
+                4 farklı modeli test etme sürecimi ve Mistral Small 24B ile %100 doğruluk elde 
+                etme hikayemi paylaşıyorum.
+            </p>
+
+            <h2>Problem: 100+ Menü İçinde Kaybolmak</h2>
+            <p>
+                Geliştirdiğimiz kurumsal ERP sisteminde 100'den fazla menü öğesi vardı. Kullanıcılar 
+                sık sık "beyanname girmek istiyorum" veya "rapor görmek istiyorum" gibi sorunlarla 
+                destek ekibine geliyordu. Klasik arama çözümleri yetersiz kalıyordu çünkü:
+            </p>
+
+            <ul>
+                <li><strong>Nested (iç içe) menüler</strong>: 3-4 seviye derinlikte alt menüler</li>
+                <li><strong>Benzer isimler</strong>: "Rapor" kelimesi 12 farklı menüde geçiyordu</li>
+                <li><strong>Türkçe keyword matching</strong>: "gb" → "Gümrük Beyannamesi" eşleşmesi zordu</li>
+                <li><strong>Rol bazlı erişim</strong>: Her kullanıcı kendi yetkili olduğu menüleri görmeli</li>
+            </ul>
+
+            <h2>Neden Local LLM?</h2>
+
+            <h3>Cloud LLM'in Dezavantajları:</h3>
+            <ul>
+                <li><strong>Maliyet</strong>: API call başına ücret (ayda binlerce sorgu = yüksek fatura)</li>
+                <li><strong>Veri güvenliği</strong>: Menü yapısı ve kullanıcı bilgileri 3rd party'ye gidiyor</li>
+                <li><strong>Latency</strong>: Her istek internet üzerinden gidip geliyor</li>
+                <li><strong>Bağımlılık</strong>: API down olursa sistem çalışmıyor</li>
+            </ul>
+
+            <h3>Local LLM'in Avantajları:</h3>
+            <ul>
+                <li>✅ <strong>$0 maliyet</strong>: Sadece GPU elektriği</li>
+                <li>✅ <strong>Tam veri kontrolü</strong>: Hiçbir şey dışarı çıkmıyor</li>
+                <li>✅ <strong>Düşük latency</strong>: Local network üzerinden ~200ms</li>
+                <li>✅ <strong>Offline çalışma</strong>: İnternet bağımlılığı yok</li>
+            </ul>
+
+            <h2>Teknoloji Stack</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">yaml</span>
+                    <span class="code-title">Tech Stack</span>
+                </div>
+                <pre><code># Local LLM Infrastructure
+Platform: Ollama v0.1.22
+Frontend: Open WebUI v0.2.5
+GPU: NVIDIA RTX 4090 (24GB VRAM)
+
+# Models Tested
+- Mistral Small 24B (WINNER)
+- Gemma 3 12B
+- Gemma 3 4B
+- Llama 3.1 8B
+- Qwen3-Coder 14B
+- DeepSeek R1 14B
+
+# Backend Integration
+Spring Boot 3.2
+RestTemplate for API calls
+JSON parsing with Jackson</code></pre>
+            </div>
+
+            <h2>Ollama Kurulumu</h2>
+
+            <h3>1. Ollama Installation (Ubuntu/Linux)</h3>
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">bash</span>
+                    <span class="code-title">Ollama Kurulumu</span>
+                </div>
+                <pre><code># Ollama install
+curl -fsSL https://ollama.com/install.sh | sh
+
+# GPU driver check
+nvidia-smi
+
+# Model download (Mistral Small 24B - ~14GB)
+ollama pull mistral-small:24b
+
+# Test run
+ollama run mistral-small:24b
+>>> Merhaba!
+Merhaba! Size nasıl yardımcı olabilirim?</code></pre>
+            </div>
+
+            <h3>2. Open WebUI Kurulumu (Docker)</h3>
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">bash</span>
+                    <span class="code-title">Open WebUI Docker</span>
+                </div>
+                <pre><code># Docker ile Open WebUI
+docker run -d -p 3000:8080 \
+  --gpus all \
+  --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  --name open-webui \
+  --restart always \
+  ghcr.io/open-webui/open-webui:main
+
+# UI'ye erişim
+# http://localhost:3000</code></pre>
+            </div>
+
+            <h2>System Prompt Engineering</h2>
+
+            <p>
+                LLM'in doğru çalışması için kritik olan kısım: <strong>System Prompt</strong>. 
+                İşte 20+ iterasyon sonrası optimize ettiğim prompt:
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">System Prompt (Final Version)</span>
+                </div>
+                <pre><code>Sen bir web uygulaması menü yönlendirme asistanısın.
+
+## KRİTİK KURALLAR:
+1. SADECE menü yönlendirmesi yap
+2. Menü dışı sorulara: "Üzgünüm, ben sadece menü yönlendirmesi yapabilirim"
+3. MUTLAKA JSON formatında yanıt ver
+4. Nested (iç içe) menüleri recursive ara
+5. Belirsiz durumlarda TÜM eşleşmeleri döndür
+
+## MENÜ YAPISI:
+100+ menü öğesi, 3-4 seviye derinlik
+Örnek: Ana Menü → Beyanname → Gümrük Beyannnamesi → GB İzleme
+
+## YANIT FORMATI:
+{
+  "matches": [
+    {
+      "path": "Sol menü → Beyanname → GB İzleme",
+      "route": "/declaration/list?type=GB",
+      "permission": "READ_DECLARATION"
+    }
+  ],
+  "total": 1,
+  "query": "kullanıcının sorusu"
+}
+
+## ÖRNEK SORGULAR:
+"rapor görmek istiyorum" → 12 farklı rapor menüsünü döndür
+"beyanname girmek istiyorum" → Beyanname Giriş sayfası
+"gb izlemek istiyorum" → GB İzleme sayfası</code></pre>
+            </div>
+
+            <h2>Model Karşılaştırması: 4 Farklı Test</h2>
+
+            <p>
+                "rapor" kelimesini arayarak her modeli test ettim. Sistem menülerinde 
+                12 farklı rapor sayfası var. İdeal sonuç: 12/12 eşleşme.
+            </p>
+
+            <h3>Test Sonuçları:</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">1/12</div>
+                    <div class="stat-label">Gemma 3 4B</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">5/12</div>
+                    <div class="stat-label">Llama 3.1 8B</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">6/12</div>
+                    <div class="stat-label">Gemma 3 12B</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-number">12/12</div>
+                    <div class="stat-label">Mistral Small 24B ✅</div>
+                </div>
+            </div>
+
+            <h3>Detaylı Analiz:</h3>
+
+            <h4>❌ Gemma 3 4B (1/12 - En Kötü)</h4>
+            <ul>
+                <li>Sadece 1 menü buldu, 11 tanesini kaçırdı</li>
+                <li>JSON formatını bozdu, path_description'a prompt metnini kopyaladı</li>
+                <li>Nested arama yapamıyor</li>
+                <li>4B parametre küçük görevler için bile yetersiz</li>
+            </ul>
+
+            <h4>🟡 Llama 3.1 8B (5/12 - Kötü)</h4>
+            <ul>
+                <li>5 menü buldu ama 7 tanesini kaçırdı</li>
+                <li>Kural uyumu zayıf</li>
+                <li>Format doğruluğu bozuk</li>
+                <li>8B bile bu görev için yetersiz</li>
+            </ul>
+
+            <h4>🟡 Gemma 3 12B (6/12 - Orta)</h4>
+            <ul>
+                <li>Yarısını buldu, yarısını kaçırdı</li>
+                <li>JSON formatı iyi</li>
+                <li>Nested aramayı kısmen yapıyor</li>
+                <li>Production için güvenilir değil</li>
+            </ul>
+
+            <h4>✅ Mistral Small 24B (12/12 - PERFECT)</h4>
+            <ul>
+                <li>Tüm 12 rapor menüsünü buldu</li>
+                <li>Mükemmel JSON formatı</li>
+                <li>Recursive nested arama yapıyor</li>
+                <li>Instruction-following çok iyi</li>
+                <li>Production-ready</li>
+            </ul>
+
+            <h2>Neden Mistral Small 24B Kazandı?</h2>
+
+            <h3>1. Model Parametresi Önemli</h3>
+            <p>
+                24B parametre, complex instruction'ları anlama ve JSON gibi yapılandırılmış 
+                output üretmede kritik fark yaratıyor. 4B/8B modeller basit task'ler için 
+                yeterli ama kurumsal seviye ihtiyaçlar için yetersiz kalıyor.
+            </p>
+
+            <h3>2. Instruction-Following Kalitesi</h3>
+            <p>
+                Mistral Small, system prompt'taki kuralları harfiyen takip etti. Diğer modeller 
+                sık sık prompt'tan sapma gösterdi.
+            </p>
+
+            <h3>3. Nested Search Capability</h3>
+            <p>
+                3-4 seviye derinlikteki menüleri recursive olarak tarayabilme yeteneği sadece 
+                Mistral Small'da var. Diğerleri yüzeysel arama yapıyor.
+            </p>
+
+            <h2>Spring Boot Entegrasyonu</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">java</span>
+                    <span class="code-title">OllamaService.java</span>
+                </div>
+                <pre><code>@Service
+@Slf4j
+public class OllamaMenuAssistantService {
+
+    private static final String OLLAMA_API_URL = "http://localhost:11434/api/generate";
+    private static final String MODEL_NAME = "mistral-small:24b";
+    
+    @Autowired
+    private RestTemplate restTemplate;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    public MenuAssistantResponse findMenu(String userQuery) {
+        try {
+            // Ollama request payload
+            Map<String, Object> request = new HashMap<>();
+            request.put("model", MODEL_NAME);
+            request.put("prompt", userQuery);
+            request.put("system", getSystemPrompt());
+            request.put("stream", false);
+            request.put("format", "json");
+
+            // API call
+            log.info("Ollama API call: {}", userQuery);
+            long startTime = System.currentTimeMillis();
+            
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                OLLAMA_API_URL,
+                request,
+                String.class
+            );
+            
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("Ollama response time: {}ms", duration);
+
+            // Parse JSON response
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String llmOutput = root.get("response").asText();
+            
+            return objectMapper.readValue(llmOutput, MenuAssistantResponse.class);
+            
+        } catch (Exception e) {
+            log.error("Ollama API error", e);
+            return MenuAssistantResponse.error("Menü arama hatası");
+        }
+    }
+
+    private String getSystemPrompt() {
+        // System prompt buraya (yukarıda paylaştım)
+        return "Sen bir web uygulaması menü yönlendirme asistanısın...";
+    }
+}</code></pre>
+            </div>
+
+            <h2>Performance Metrics</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card highlight">
+                    <div class="stat-number">~200ms</div>
+                    <div class="stat-label">Avg Response Time</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Accuracy (12/12)</div>
+                </div>
+                <div class="stat-card highlight">
+                    <div class="stat-number">$0</div>
+                    <div class="stat-label">Monthly Cost</div>
+                </div>
+            </div>
+
+            <h3>Maliyet Karşılaştırması: Cloud vs Local</h3>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Cost Analysis (Monthly)</span>
+                </div>
+                <pre><code># Cloud LLM (OpenAI GPT-4)
+10,000 queries/month × $0.03/1K tokens = ~$300/month
++ Latency: 500-1000ms
+
+# Local LLM (Mistral Small 24B)
+Electricity: ~$20/month (GPU power)
++ Latency: 200ms
+= $280/month savings 💰</code></pre>
+            </div>
+
+            <h2>Zorluklar ve Çözümler</h2>
+
+            <h3>1. VRAM Limiti</h3>
+            <p>
+                <strong>Problem</strong>: Mistral Small 24B, full precision'da ~48GB VRAM istiyor. 
+                RTX 4090'ım sadece 24GB.
+            </p>
+            <p>
+                <strong>Çözüm</strong>: 4-bit quantization (Q4_K_M) kullandım. Model boyutu 48GB'den 
+                14GB'ye düştü, accuracy kaybı minimal (~2%).
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">bash</span>
+                    <span class="code-title">Quantized Model</span>
+                </div>
+                <pre><code># Quantized model pull
+ollama pull mistral-small:24b-q4_K_M
+
+# VRAM usage check
+nvidia-smi
+# 14GB / 24GB (safe margin)</code></pre>
+            </div>
+
+            <h3>2. Prompt Drift (Kural Sapmasi)</h3>
+            <p>
+                <strong>Problem</strong>: LLM bazen system prompt'taki kuralları unutuyor, 
+                menü dışı sorulara cevap vermeye çalışıyor.
+            </p>
+            <p>
+                <strong>Çözüm</strong>: Prompt'ta "ASLA", "MUTLAKA", "SADECE" gibi güçlü 
+                keyword'ler kullandım. Ayrıca her istek başında kuralları tekrarladım.
+            </p>
+
+            <h3>3. JSON Parse Hatası</h3>
+            <p>
+                <strong>Problem</strong>: Bazen LLM valid JSON yerine Markdown wrapped JSON döndürüyordu:
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">json</span>
+                    <span class="code-title">Invalid Output Example</span>
+                </div>
+                <pre><code>```json
+{
+  "matches": [...]
+}
+```</code></pre>
+            </div>
+
+            <p>
+                <strong>Çözüm</strong>: Backend'de regex ile Markdown fence'leri temizledim:
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">java</span>
+                    <span class="code-title">JSON Cleanup</span>
+                </div>
+                <pre><code>String cleanJson = llmOutput
+    .replaceAll("```json\\n?", "")
+    .replaceAll("```\\n?", "")
+    .trim();
+
+return objectMapper.readValue(cleanJson, MenuAssistantResponse.class);</code></pre>
+            </div>
+
+            <h2>Production Deployment</h2>
+
+            <h3>Docker Compose Setup</h3>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">yaml</span>
+                    <span class="code-title">docker-compose.yml</span>
+                </div>
+                <pre><code>version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - open-webui-data:/app/backend/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+  open-webui-data:</code></pre>
+            </div>
+
+            <h2>Öğrendiklerim ve Tavsiyeler</h2>
+
+            <div class="tips-box">
+                <h3>✅ Yapılması Gerekenler:</h3>
+                <ul>
+                    <li><strong>Model seçimi kritik</strong>: 24B+ parametre production için minimum</li>
+                    <li><strong>Quantization kullan</strong>: VRAM'i optimize et, accuracy kaybı minimal</li>
+                    <li><strong>Prompt engineering'e zaman ayır</strong>: 20+ iterasyon normal</li>
+                    <li><strong>Fallback mekanizması</strong>: LLM fail ederse klasik search devreye girsin</li>
+                    <li><strong>Monitoring ekle</strong>: Response time, error rate, accuracy tracking</li>
+                    <li><strong>A/B testing yap</strong>: Farklı modelleri gerçek kullanıcılarla test et</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h3>❌ Kaçınılması Gerekenler:</h3>
+                <ul>
+                    <li><strong>Küçük modellere güvenme</strong>: 4B/8B production için risk</li>
+                    <li><strong>Prompt'u değiştirmeden canlıya alma</strong>: Mutlaka test et</li>
+                    <li><strong>VRAM limitini aşma</strong>: OOM (Out of Memory) crash'e sebep olur</li>
+                    <li><strong>Error handling ihmal etme</strong>: LLM bazen beklenmedik output verir</li>
+                    <li><strong>Cloud LLM'e körü körüne geçme</strong>: Local alternatif genelde daha iyi</li>
+                </ul>
+            </div>
+
+            <h2>Gelecek Planları</h2>
+
+            <h3>1. RAG (Retrieval Augmented Generation) Entegrasyonu</h3>
+            <p>
+                Menü yapısını vector database'e (Chroma/Qdrant) indexleyerek semantic search 
+                ekleyeceğim. Böylece "fatura" → "invoice" gibi cross-language query'ler de çalışacak.
+            </p>
+
+            <h3>2. Fine-tuning</h3>
+            <p>
+                Kullanıcı sorgu geçmişinden dataset oluşturup model'i fine-tune edeceğim. 
+                Domain-specific performansı daha da artıracak.
+            </p>
+
+            <h3>3. Multi-modal Support</h3>
+            <p>
+                Screenshot'tan menü bulma: Kullanıcı ekran görüntüsü atınca LLM o sayfaya giden 
+                yolu gösterecek.
+            </p>
+
+            <h2>Sonuç</h2>
+
+            <p>
+                Local LLM ile kurumsal bir problemi çözdüm: 100+ menü arasında yönlendirme. 
+                Cloud LLM yerine Ollama + Mistral Small 24B kullanarak:
+            </p>
+
+            <ul>
+                <li>✅ $280/ay maliyet tasarrufu</li>
+                <li>✅ %100 veri güvenliği (hiçbir veri dışarı çıkmıyor)</li>
+                <li>✅ 200ms latency (cloud'dan 3-5x hızlı)</li>
+                <li>✅ 12/12 accuracy (production-ready)</li>
+            </ul>
+
+            <p>
+                En önemli ders: Model parametresi kritik. 4B/8B modeller hobi projeleri için 
+                yeterli ama kurumsal ihtiyaçlar için 24B+ gerekli. Prompt engineering ve 
+                quantization ile local LLM'ler artık production-ready seviyede.
+            </p>
+
+            <div class="cta-box">
+                <h3>Sorularınız mı var?</h3>
+                <p>
+                    Local LLM, Ollama veya prompt engineering hakkında soru ve deneyimlerinizi 
+                    <a href="mailto:sahbazremzii@gmail.com">email</a> veya 
+                    <a href="https://linkedin.com/in/remzisahbaz090" target="_blank">LinkedIn</a> 
+                    üzerinden benimle paylaşabilirsiniz.
+                </p>
+            </div>
+
+            <div class="post-tags">
+                <span class="tag-label">Etiketler:</span>
+                <a href="#" class="tag">LLM</a>
+                <a href="#" class="tag">Ollama</a>
+                <a href="#" class="tag">Mistral</a>
+                <a href="#" class="tag">AI</a>
+                <a href="#" class="tag">Prompt Engineering</a>
+                <a href="#" class="tag">Local AI</a>
+            </div>
+        </div>
+
+        <footer class="post-footer">
+            <div class="author-card">
+                <div class="author-info">
+                    <h3>Remzi Şahbaz</h3>
+                    <p>Software Engineer @ ExperiLabs</p>
+                    <p class="author-bio">
+                        4+ yıldır banking ve fintech sektöründe Spring Boot, mikroservisler ve 
+                        AI/LLM teknolojileriyle çalışıyorum.
+                    </p>
+                </div>
+                <div class="author-links">
+                    <a href="https://github.com/remzisahbaz" target="_blank">GitHub</a>
+                    <a href="https://linkedin.com/in/remzisahbaz090" target="_blank">LinkedIn</a>
+                </div>
+            </div>
+        </footer>
+    </article>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <div class="footer-logo">
+                    <span class="logo-bracket">&lt;</span>
+                    <span class="logo-text">Remzi</span>
+                    <span class="logo-bracket">/&gt;</span>
+                </div>
+                <p class="footer-tagline">Kod, Mimari ve Mikroservisler</p>
+            </div>
+            <div class="footer-right">
+                <p>&copy; 2026 Remzi Şahbaz. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

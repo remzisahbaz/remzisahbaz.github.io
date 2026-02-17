@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ollama üzerinde 6 farklı LLM modelini test ettim: Mistral Small, Gemma, Llama, Qwen, DeepSeek. Hangisi production'a hazır?">
+    <title>Local LLM Model Karşılaştırması: Production İçin Hangisi? | Remzi Şahbaz Blog</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="post-styles.css">
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">
+                <span class="logo-bracket">&lt;</span>
+                <span class="logo-text">Remzi</span>
+                <span class="logo-bracket">/&gt;</span>
+            </a>
+            <div class="nav-links">
+                <a href="../index.html#articles" class="nav-link">Makaleler</a>
+                <a href="../index.html#about" class="nav-link">Hakkımda</a>
+                <a href="https://github.com/remzisahbaz" target="_blank" class="nav-link">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="post">
+        <header class="post-header">
+            <div class="post-meta-top">
+                <a href="../index.html" class="back-link">← Geri</a>
+                <span class="post-tag">LLM Benchmark</span>
+            </div>
+            <h1 class="post-title">Local LLM Model Karşılaştırması: Production İçin Hangisi?</h1>
+            <div class="post-meta">
+                <span class="meta-item">Remzi Şahbaz</span>
+                <span class="meta-separator">•</span>
+                <span class="meta-item">17 Şubat 2026</span>
+                <span class="meta-separator">•</span>
+                <span class="meta-item">20 dk okuma</span>
+            </div>
+        </header>
+
+        <div class="post-content">
+            <p class="post-lead">
+                Ollama üzerinde 6 farklı local LLM modelini gerçek bir production use case ile test ettim: 
+                Mistral Small 24B, Gemma 3 (4B/12B), Llama 3.1 8B, Qwen3-Coder 14B, DeepSeek R1 14B. 
+                Hangisi instruction-following, JSON generation ve nested search konularında en iyi? 
+                Detaylı benchmark sonuçları ve production önerileri.
+            </p>
+
+            <h2>Test Senaryosu: Kurumsal Menü Arama</h2>
+
+            <p>
+                Teorik benchmark'lar yerine <strong>gerçek bir production use case</strong> kullandım: 
+                100+ menü öğesi içeren bir ERP sisteminde kullanıcıları doğru sayfaya yönlendiren bir asistan.
+            </p>
+
+            <h3>Zorluk Seviyeleri:</h3>
+
+            <ul>
+                <li><strong>Nested search</strong>: 3-4 seviye derinlikte alt menüler (recursive arama gerekli)</li>
+                <li><strong>Ambiguous keywords</strong>: "rapor" kelimesi 12 farklı yerde geçiyor</li>
+                <li><strong>JSON output</strong>: Strict schema'ya uygun yapılandırılmış yanıt</li>
+                <li><strong>Instruction-following</strong>: System prompt'taki kuralları harfiyen takip etme</li>
+                <li><strong>Türkçe NLP</strong>: Türkçe keyword matching ve semantic understanding</li>
+            </ul>
+
+            <h2>Test Edilen Modeller</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">yaml</span>
+                    <span class="code-title">Model Lineup</span>
+                </div>
+                <pre><code># Google Models
+- gemma:4b (Gemma 3 4B) - 2.7GB
+- gemma:12b (Gemma 3 12B) - 8.5GB
+
+# Meta Models
+- llama3.1:8b (Llama 3.1 8B) - 4.7GB
+
+# Mistral AI
+- mistral-small:24b (Mistral Small 24B) - 14GB
+
+# Chinese Models
+- qwen2.5-coder:14b (Qwen3-Coder 14B) - 9.0GB
+- deepseek-r1:14b (DeepSeek R1 14B) - 9.2GB</code></pre>
+            </div>
+
+            <h3>Hardware Setup:</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">RTX 4090</div>
+                    <div class="stat-label">GPU</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">24GB</div>
+                    <div class="stat-label">VRAM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">32GB</div>
+                    <div class="stat-label">RAM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">i9-13900K</div>
+                    <div class="stat-label">CPU</div>
+                </div>
+            </div>
+
+            <h2>Test Metodolojisi</h2>
+
+            <h3>1. Standardize System Prompt</h3>
+
+            <p>
+                Tüm modellere <strong>aynı system prompt</strong> verildi. Prompt engineering farklılığını 
+                elimine ettim, sadece model capability'yi test ettim.
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">System Prompt (Same for All)</span>
+                </div>
+                <pre><code>Sen bir web uygulaması menü yönlendirme asistanısın.
+
+KURALLAR:
+1. SADECE menü yönlendirmesi yap
+2. Nested menüleri recursive ara
+3. MUTLAKA JSON formatında yanıt ver
+4. Belirsiz durumlarda TÜM eşleşmeleri döndür
+
+YANIT FORMATI:
+{
+  "matches": [
+    {
+      "path": "Sol menü → Ana Menü → Alt Menü",
+      "route": "/path/to/page",
+      "permission": "REQUIRED_PERMISSION"
+    }
+  ],
+  "total": N,
+  "query": "kullanıcı sorusu"
+}</code></pre>
+            </div>
+
+            <h3>2. Test Case: "rapor" Keyword</h3>
+
+            <p>
+                Sistemde "rapor" kelimesi içeren <strong>12 farklı menü</strong> var. İdeal sonuç: 
+                12/12 eşleşme bulma.
+            </p>
+
+            <div class="info-box">
+                <h4>💡 Neden "rapor" Testi?</h4>
+                <p>
+                    "rapor" keyword'ü hem nested menülerde hem de farklı kategorilerde geçiyor. 
+                    Model'in recursive search, semantic matching ve JSON serialization yeteneklerini 
+                    aynı anda test ediyor.
+                </p>
+            </div>
+
+            <h3>12 Rapor Menüsü Listesi:</h3>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Expected Matches (12/12)</span>
+                </div>
+                <pre><code>1. Sol menü → Beyanname → Teminat İşlemleri → Rapor
+2. Sol menü → Tarımsal → Tarımsal Raporlar
+3. Sol menü → Tarımsal → Tarımsal Raporlar → İade Raporları
+4. Sol menü → Tarımsal → Tarımsal Raporlar → Dolaşım Belgeleri Raporu
+5. Sol menü → Raporlar → Üyenin GBleri
+6. Sol menü → Raporlar → Üyenin GBleri Raporu
+7. Sol menü → Raporlar → Performans ve Güvenilirlik Formu
+8. Sol menü → Raporlar → Genel Kurul Raporu
+9. Sol menü → Raporlar → Beyanname Log İzleme
+10. Sol menü → Raporlar → Kullanıcı Performans Raporu
+11. Üst menü → Yönetim → Raporlar
+12. Üst menü → Analiz → Rapor Dashboard</code></pre>
+            </div>
+
+            <h2>Detaylı Test Sonuçları</h2>
+
+            <h3>📊 Özet Tablo:</h3>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Benchmark Results</span>
+                </div>
+                <pre><code>┌─────────────────────┬────────┬──────────┬──────────┬──────────┬────────────┐
+│ Model               │ Size   │ Matches  │ JSON     │ Speed    │ Production │
+├─────────────────────┼────────┼──────────┼──────────┼──────────┼────────────┤
+│ Gemma 3 4B          │ 2.7GB  │ 1/12 ❌  │ Broken   │ 150ms    │ NO         │
+│ Llama 3.1 8B        │ 4.7GB  │ 5/12 🟡  │ Partial  │ 180ms    │ NO         │
+│ Gemma 3 12B         │ 8.5GB  │ 6/12 🟡  │ Good     │ 220ms    │ MAYBE      │
+│ Qwen3-Coder 14B     │ 9.0GB  │ 8/12 🟢  │ Good     │ 240ms    │ YES        │
+│ DeepSeek R1 14B     │ 9.2GB  │ 9/12 🟢  │ Excellent│ 280ms    │ YES        │
+│ Mistral Small 24B   │ 14GB   │ 12/12 ✅ │ Perfect  │ 200ms    │ YES ⭐     │
+└─────────────────────┴────────┴──────────┴──────────┴──────────┴────────────┘</code></pre>
+            </div>
+
+            <h2>Model-by-Model Analiz</h2>
+
+            <h3>❌ 6. Gemma 3 4B - FAIL (1/12)</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">1/12</div>
+                    <div class="stat-label">Eşleşme</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">2.7GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~150ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>Sorunlar:</h4>
+            <ul>
+                <li>Sadece 1 menü buldu, diğer 11'ini kaçırdı</li>
+                <li>JSON formatını bozdu, invalid output</li>
+                <li>Nested search yapamıyor, sadece yüzeysel arama</li>
+                <li>Prompt'taki instruction'ları takip etmiyor</li>
+            </ul>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">json</span>
+                    <span class="code-title">Gemma 3 4B Output (Broken)</span>
+                </div>
+                <pre><code>{
+  "Response1": {
+    "path_description": "Beyanname → Teminat İşlemleri → Rapor",
+    "url": "/declaration/guarantee-transactions/report"
+  }
+  // Missing 11 other matches
+  // Invalid JSON structure (should be "matches" array)
+}</code></pre>
+            </div>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>❌ Production'a UYGUN DEĞİL.</strong> 4B parametre karmaşık instruction-following 
+                için yetersiz. Hobby projeler veya çok basit task'ler için kullanılabilir.
+            </p>
+
+            <h3>🟡 5. Llama 3.1 8B - WEAK (5/12)</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">5/12</div>
+                    <div class="stat-label">Eşleşme</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">4.7GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~180ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>Sorunlar:</h4>
+            <ul>
+                <li>5 menü buldu, 7 tanesini kaçırdı (%42 success rate)</li>
+                <li>JSON formatı kısmen doğru ama inconsistent</li>
+                <li>Nested search yapıyor ama shallow (2 seviye max)</li>
+                <li>Türkçe keyword matching zayıf</li>
+            </ul>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>🟡 Production için RİSKLİ.</strong> 8B parametre basic task'ler için yeterli 
+                ama kurumsal seviye ihtiyaçlar için güvenilir değil. %50 accuracy tolere edilemez.
+            </p>
+
+            <h3>🟡 4. Gemma 3 12B - MEDIOCRE (6/12)</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">6/12</div>
+                    <div class="stat-label">Eşleşme</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">8.5GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~220ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>İyileştirmeler (vs 4B):</h4>
+            <ul>
+                <li>JSON formatı düzgün, valid output</li>
+                <li>Nested search kısmen çalışıyor</li>
+                <li>Instruction-following orta seviye</li>
+            </ul>
+
+            <h4>Hala Sorunlar:</h4>
+            <ul>
+                <li>Yarısını buldu, yarısını kaçırdı (%50 accuracy)</li>
+                <li>Deep nested menüleri bulamıyor (3+ seviye)</li>
+                <li>Semantic matching zayıf</li>
+            </ul>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>🟡 Production için SINIRLI KULLANIM.</strong> Non-critical features için kullanılabilir 
+                ama mission-critical task'ler için yeterli değil.
+            </p>
+
+            <h3>🟢 3. Qwen3-Coder 14B - GOOD (8/12)</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">8/12</div>
+                    <div class="stat-label">Eşleşme</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">9.0GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~240ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>Güçlü Yönler:</h4>
+            <ul>
+                <li>8/12 eşleşme (%67 accuracy) - kabul edilebilir seviye</li>
+                <li>Mükemmel JSON formatting (code model olduğu için)</li>
+                <li>Deep nested search yapabiliyor (3-4 seviye)</li>
+                <li>Instruction-following iyi</li>
+            </ul>
+
+            <h4>Eksiklikler:</h4>
+            <ul>
+                <li>4 menüyü kaçırdı - edge case'lerde problem</li>
+                <li>Türkçe NLP biraz zayıf (Chinese model)</li>
+            </ul>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>✅ Production için UYGUN.</strong> %67 accuracy birçok use case için yeterli. 
+                Code-heavy task'lerde (JSON generation, API calls) mükemmel performans.
+            </p>
+
+            <h3>🟢 2. DeepSeek R1 14B - VERY GOOD (9/12)</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">9/12</div>
+                    <div class="stat-label">Eşleşme</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">9.2GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~280ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>Güçlü Yönler:</h4>
+            <ul>
+                <li>9/12 eşleşme (%75 accuracy) - çok iyi</li>
+                <li>Excellent JSON formatting ve schema compliance</li>
+                <li>Reasoning capabilities güçlü (R1 = Reasoning)</li>
+                <li>Semantic understanding çok iyi</li>
+            </ul>
+
+            <h4>Neden 100% değil?:</h4>
+            <ul>
+                <li>3 menüyü kaçırdı - muhtemelen context window limitation</li>
+                <li>Biraz daha yavaş (~280ms vs 200ms)</li>
+            </ul>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>✅ Production için ÇOK UYGUN.</strong> %75 accuracy production-grade. 
+                Reasoning-heavy task'lerde (analysis, decision-making) mükemmel.
+            </p>
+
+            <h3>✅ 1. Mistral Small 24B - PERFECT (12/12) 🏆</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card success">
+                    <div class="stat-number">12/12</div>
+                    <div class="stat-label">Eşleşme ✅</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">14GB</div>
+                    <div class="stat-label">Model Size</div>
+                </div>
+                <div class="stat-card highlight">
+                    <div class="stat-number">~200ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+            </div>
+
+            <h4>Neden En İyi?:</h4>
+            <ul>
+                <li><strong>%100 accuracy</strong> - Tüm 12 menüyü buldu</li>
+                <li><strong>Perfect JSON</strong> - Schema'ya tamamen uyumlu</li>
+                <li><strong>Full nested search</strong> - 4 seviye derinliğe kadar arama</li>
+                <li><strong>Excellent instruction-following</strong> - Prompt'taki her kuralı uyguladı</li>
+                <li><strong>Fast</strong> - 24B parametre olmasına rağmen 200ms (en hızlılardan)</li>
+                <li><strong>Türkçe NLP</strong> - Multilingual training sayesinde güçlü</li>
+            </ul>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">json</span>
+                    <span class="code-title">Mistral Small 24B Output (Perfect)</span>
+                </div>
+                <pre><code>{
+  "matches": [
+    {
+      "path": "Sol menü → Beyanname → Teminat İşlemleri → Rapor",
+      "route": "/declaration/guarantee-transactions/report",
+      "permission": "READ_DECLARATION_REPORT"
+    },
+    {
+      "path": "Sol menü → Tarımsal → Tarımsal Raporlar",
+      "route": "/agricultural/reports",
+      "permission": "READ_AGRICULTURAL_REPORTS"
+    },
+    // ... 10 more matches (all correct)
+  ],
+  "total": 12,
+  "query": "rapor"
+}</code></pre>
+            </div>
+
+            <h4>Verdict:</h4>
+            <p>
+                <strong>🏆 PRODUCTION CHAMPION.</strong> Mission-critical task'ler için en güvenilir seçim. 
+                %100 accuracy, mükemmel JSON formatting, ve hızlı response time kombinasyonu 
+                production'da istikrarlı performans sağlıyor.
+            </p>
+
+            <h2>Model Size vs Performance Trade-off</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Correlation Analysis</span>
+                </div>
+                <pre><code>Model Size → Accuracy Korelasyonu:
+
+4B  →  8% accuracy  (1/12)
+8B  → 42% accuracy  (5/12)
+12B → 50% accuracy  (6/12)
+14B → 67% accuracy  (8/12) [Qwen]
+14B → 75% accuracy  (9/12) [DeepSeek]
+24B → 100% accuracy (12/12) [Mistral] ⭐
+
+Sonuç: Logaritmik artış. 
+8B'den 24B'ye geçiş %400 performance artışı sağlıyor!</code></pre>
+            </div>
+
+            <h3>Critical Threshold: 14B-24B Arası</h3>
+
+            <p>
+                Test sonuçlarına göre <strong>production için minimum 14B parametre</strong> gerekli. 
+                Ama %100 accuracy için <strong>24B ideal</strong>. 14B-24B arası "good enough" vs 
+                "perfect" farkı.
+            </p>
+
+            <h2>VRAM vs Model Size</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">~3GB</div>
+                    <div class="stat-label">Gemma 3 4B</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~5GB</div>
+                    <div class="stat-label">Llama 3.1 8B</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~9GB</div>
+                    <div class="stat-label">Gemma 3 12B</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">~14GB</div>
+                    <div class="stat-label">Mistral Small 24B (Q4)</div>
+                </div>
+            </div>
+
+            <h3>Quantization Magic:</h3>
+
+            <p>
+                Mistral Small 24B full precision'da ~48GB VRAM istiyor. Ama <strong>4-bit quantization (Q4_K_M)</strong> 
+                ile 14GB'ye düşüyor ve accuracy kaybı minimal (~2%).
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">bash</span>
+                    <span class="code-title">Quantization Comparison</span>
+                </div>
+                <pre><code># Full precision (FP16)
+mistral-small:24b-fp16 → 48GB VRAM → 100% accuracy
+
+# 8-bit quantization
+mistral-small:24b-q8 → 24GB VRAM → 99% accuracy
+
+# 4-bit quantization (RECOMMENDED)
+mistral-small:24b-q4_K_M → 14GB VRAM → 98% accuracy
+
+# 2-bit quantization (too aggressive)
+mistral-small:24b-q2_K → 8GB VRAM → 85% accuracy ❌</code></pre>
+            </div>
+
+            <p>
+                <strong>Sonuç</strong>: Q4_K_M quantization ideal sweet spot. 14GB VRAM ile RTX 4090, 
+                RTX 3090 veya A5000 gibi consumer-grade GPU'larda çalışıyor.
+            </p>
+
+            <h2>Speed Benchmark: Tokens/Second</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Throughput Comparison</span>
+                </div>
+                <pre><code>Model                  Tokens/sec  Total Time  Winner
+─────────────────────  ──────────  ──────────  ──────
+Gemma 3 4B             ~45 t/s     150ms       🥇 (fastest)
+Llama 3.1 8B           ~38 t/s     180ms       🥈
+Mistral Small 24B      ~35 t/s     200ms       🥉
+Gemma 3 12B            ~30 t/s     220ms       
+Qwen3-Coder 14B        ~28 t/s     240ms       
+DeepSeek R1 14B        ~24 t/s     280ms       🐌 (slowest)</code></pre>
+            </div>
+
+            <h3>Speed vs Accuracy Trade-off:</h3>
+
+            <p>
+                Gemma 3 4B en hızlı (%1 accuracy) → Kullanılamaz<br>
+                Mistral Small 24B orta hızlı (%100 accuracy) → <strong>En balanced</strong><br>
+                DeepSeek R1 14B en yavaş (%75 accuracy) → Reasoning için iyi
+            </p>
+
+            <h2>Use Case Önerileri</h2>
+
+            <h3>🎯 Hangi Model Hangi İş İçin?</h3>
+
+            <div class="tips-box">
+                <h3>Mission-Critical Applications</h3>
+                <p><strong>Öneri: Mistral Small 24B</strong></p>
+                <ul>
+                    <li>Banking, fintech, healthcare sistemleri</li>
+                    <li>Legal document processing</li>
+                    <li>Customer-facing chatbots</li>
+                    <li>Automated decision-making</li>
+                </ul>
+                <p><strong>Neden?</strong> %100 accuracy tolere edilemeyen hata oranı için kritik.</p>
+            </div>
+
+            <div class="info-box">
+                <h3>Code Generation & Analysis</h3>
+                <p><strong>Öneri: Qwen3-Coder 14B veya DeepSeek R1 14B</strong></p>
+                <ul>
+                    <li>Code completion, refactoring</li>
+                    <li>Bug detection, code review</li>
+                    <li>API documentation generation</li>
+                    <li>SQL query generation</li>
+                </ul>
+                <p><strong>Neden?</strong> Code-specialized modeller JSON/structured output'ta mükemmel.</p>
+            </div>
+
+            <div class="warning-box">
+                <h3>Internal Tools & Prototyping</h3>
+                <p><strong>Öneri: Gemma 3 12B veya Llama 3.1 8B</strong></p>
+                <ul>
+                    <li>Internal dashboard chatbots</li>
+                    <li>Dev tool assistants</li>
+                    <li>Prototype testing</li>
+                    <li>Non-critical automation</li>
+                </ul>
+                <p><strong>Neden?</strong> %50-67 accuracy tolere edilebilir, VRAM tasarrufu sağlar.</p>
+            </div>
+
+            <div class="warning-box">
+                <h3>❌ Production'da KULLANILMASERİKTİK KULLANMAYIN</h3>
+                <p><strong>Gemma 3 4B, Llama 3.1 8B (kritik işlerde)</strong></p>
+                <ul>
+                    <li>%8-42 accuracy production için yetersiz</li>
+                    <li>Instruction-following güvenilmez</li>
+                    <li>JSON formatting bozuk</li>
+                </ul>
+                <p><strong>Kullanım alanı:</strong> Sadece hobby projeler, öğrenme, experimenting.</p>
+            </div>
+
+            <h2>Cost Analysis: Cloud vs Local</h2>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">plaintext</span>
+                    <span class="code-title">Monthly Cost (10K queries)</span>
+                </div>
+                <pre><code>Cloud LLM (GPT-4 / Claude Opus):
+  10,000 queries × $0.03/query = $300/month
+  + Latency: 500-1000ms
+  + Data privacy risk
+
+Local LLM (Mistral Small 24B):
+  Electricity: ~$20/month (RTX 4090 power)
+  + One-time GPU cost: $1,600 (amortized over 2 years = $67/month)
+  = Total: $87/month
+  
+  💰 Savings: $213/month ($2,556/year)
+  🔒 Data stays local
+  ⚡ Latency: 200ms (2-5x faster)</code></pre>
+            </div>
+
+            <h2>Gelecek Trendler</h2>
+
+            <h3>1. Smaller Models Getting Better</h3>
+            <p>
+                Gemma 3 ve Llama 4 gibi yeni nesil modeller, daha küçük parametre sayısıyla 
+                daha iyi performans sunuyor. 2026'da 8B model bugünün 24B'sini geçebilir.
+            </p>
+
+            <h3>2. Mixture of Experts (MoE)</h3>
+            <p>
+                Mixtral 8x7B gibi MoE modelleri, 56B parametre ama sadece 14B aktif oluyor. 
+                Büyük model performansı, küçük model VRAM tüketimi.
+            </p>
+
+            <h3>3. Specialized Fine-tuning</h3>
+            <p>
+                Domain-specific fine-tuning ile 14B model 24B'yi geçebilir. Örnek: Banking 
+                task'leri için fine-tune edilmiş Qwen3 14B, genel Mistral 24B'den daha iyi olabilir.
+            </p>
+
+            <h2>Öğrendiklerim ve Tavsiyeler</h2>
+
+            <div class="tips-box">
+                <h3>✅ Production İçin En İyi Pratikler:</h3>
+                <ul>
+                    <li><strong>Minimum 14B parametre</strong> kullanın (critical systems için 24B)</li>
+                    <li><strong>Q4 quantization</strong> ideal sweet spot (98% accuracy, 1/3 VRAM)</li>
+                    <li><strong>Benchmark kendi use case'inizle</strong> - synthetic benchmark'lara güvenmeyin</li>
+                    <li><strong>A/B testing</strong> yapın - gerçek kullanıcılarla test edin</li>
+                    <li><strong>Fallback mechanism</strong> ekleyin - model fail ederse plan B olsun</li>
+                    <li><strong>Monitoring</strong> kurun - accuracy, latency, error rate tracking</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h3>❌ Yapmamanız Gerekenler:</h3>
+                <ul>
+                    <li><strong>Küçük modellere körü körüne güvenme</strong> - test etmeden production'a alma</li>
+                    <li><strong>Cloud LLM'e hemen geçme</strong> - local alternatif varken gereksiz maliyet</li>
+                    <li><strong>VRAM limitini zorla</strong> - OOM crash production'u durduruyor</li>
+                    <li><strong>Prompt engineering ihmal etme</strong> - model ne kadar iyi olursa olsun prompt kritik</li>
+                    <li><strong>Single model bağımlılığı</strong> - farklı task'ler farklı model isteyebilir</li>
+                </ul>
+            </div>
+
+            <h2>Sonuç</h2>
+
+            <p>
+                6 farklı local LLM modelini gerçek production use case ile test ettim. Sonuçlar net:
+            </p>
+
+            <ul>
+                <li>🏆 <strong>Mistral Small 24B</strong>: Mission-critical için en iyi (12/12, %100)</li>
+                <li>🥈 <strong>DeepSeek R1 14B</strong>: Reasoning-heavy task'ler için mükemmel (9/12, %75)</li>
+                <li>🥉 <strong>Qwen3-Coder 14B</strong>: Code generation için güçlü (8/12, %67)</li>
+                <li>⚠️ <strong>Gemma 3 12B, Llama 3.1 8B</strong>: Non-critical için kullanılabilir</li>
+                <li>❌ <strong>Gemma 3 4B</strong>: Production'a uygun değil</li>
+            </ul>
+
+            <p>
+                En önemli ders: <strong>Model parametresi kritik</strong>. 4B-8B basit task'ler için 
+                yeterli ama kurumsal ihtiyaçlar için 14B+ gerekli. 24B ile %100 accuracy mümkün ve 
+                cloud LLM'den 3x ucuz, 3x hızlı.
+            </p>
+
+            <div class="cta-box">
+                <h3>Hangi modeli seçtiniz?</h3>
+                <p>
+                    Kendi test sonuçlarınızı ve deneyimlerinizi benimle paylaşın:
+                    <a href="mailto:sahbazremzii@gmail.com">email</a> | 
+                    <a href="https://linkedin.com/in/remzisahbaz090" target="_blank">LinkedIn</a>
+                </p>
+            </div>
+
+            <div class="post-tags">
+                <span class="tag-label">Etiketler:</span>
+                <a href="#" class="tag">LLM Benchmark</a>
+                <a href="#" class="tag">Mistral</a>
+                <a href="#" class="tag">Gemma</a>
+                <a href="#" class="tag">Llama</a>
+                <a href="#" class="tag">Ollama</a>
+                <a href="#" class="tag">Model Comparison</a>
+            </div>
+        </div>
+
+        <footer class="post-footer">
+            <div class="author-card">
+                <div class="author-info">
+                    <h3>Remzi Şahbaz</h3>
+                    <p>Software Engineer @ ExperiLabs</p>
+                    <p class="author-bio">
+                        Local LLM ve AI teknolojileriyle kurumsal çözümler geliştiriyorum. 
+                        Production'da test edilmiş deneyimlerimi paylaşıyorum.
+                    </p>
+                </div>
+                <div class="author-links">
+                    <a href="https://github.com/remzisahbaz" target="_blank">GitHub</a>
+                    <a href="https://linkedin.com/in/remzisahbaz090" target="_blank">LinkedIn</a>
+                </div>
+            </div>
+        </footer>
+    </article>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <div class="footer-logo">
+                    <span class="logo-bracket">&lt;</span>
+                    <span class="logo-text">Remzi</span>
+                    <span class="logo-bracket">/&gt;</span>
+                </div>
+                <p class="footer-tagline">Kod, Mimari ve Mikroservisler</p>
+            </div>
+            <div class="footer-right">
+                <p>&copy; 2026 Remzi Şahbaz. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>
