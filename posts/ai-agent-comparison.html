@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aynı Problem, İki Zihinsel Model: Claude Code vs ChatGPT Codex | remzisahbaz.github.io</title>
+  <meta name="description" content="Bir SOAP web servisi entegrasyon görevini iki farklı AI coding agent'a verdim. İkisi de 'doğru' çözdü — ama tamamen farklı sorular sorarak. İşte ortaya çıkan zihinsel modeller." />
+  <meta name="author" content="Remzi Şahbaz" />
+  <meta property="og:title" content="Aynı Problem, İki Zihinsel Model: Claude Code vs ChatGPT Codex" />
+  <meta property="og:description" content="AI coding agent karşılaştırması: Haritacı vs Risk Yöneticisi" />
+  <meta property="og:type" content="article" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface2: #1c1c1c;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --text-muted: #888;
+      --text-faint: #555;
+      --accent: #00ff88;
+      --accent-alpha: rgba(0,255,136,0.08);
+      --alpha-color: #FF6B35;
+      --alpha-alpha: rgba(255,107,53,0.1);
+      --beta-color: #6C63FF;
+      --beta-alpha: rgba(108,99,255,0.1);
+      --mono: 'JetBrains Mono', monospace;
+      --serif: 'Crimson Pro', Georgia, serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 1px; text-decoration: none; }
+    .nav-back { font-size: 12px; color: var(--text-muted); text-decoration: none; letter-spacing: 1px; transition: color .2s; }
+    .nav-back:hover { color: var(--accent); }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 740px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── POST HEADER ── */
+    .post-header {
+      padding: 100px 0 48px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 56px;
+    }
+    .post-tag {
+      display: inline-block;
+      font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid rgba(0,255,136,0.3);
+      background: var(--accent-alpha);
+      border-radius: 4px;
+      padding: 3px 10px;
+      margin-bottom: 20px;
+    }
+    .post-title {
+      font-family: var(--serif);
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 600;
+      line-height: 1.2;
+      color: #f0f0f0;
+      margin-bottom: 20px;
+    }
+    .post-subtitle {
+      font-size: 16px; color: var(--text-muted); line-height: 1.7;
+      margin-bottom: 28px;
+    }
+    .post-meta {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      font-size: 12px; color: var(--text-faint); letter-spacing: .5px;
+    }
+    .post-meta span { display: flex; align-items: center; gap: 6px; }
+    .post-meta .dot { color: var(--border); }
+
+    /* ── BODY CONTENT ── */
+    .post-body { margin-bottom: 80px; }
+
+    .post-body p { margin-bottom: 24px; color: var(--text); line-height: 1.85; }
+
+    .post-body h2 {
+      font-family: var(--serif); font-size: 26px; font-weight: 600;
+      color: #f0f0f0; margin: 52px 0 18px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+    .post-body h3 {
+      font-size: 14px; font-weight: 600; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-muted);
+      margin: 36px 0 14px;
+    }
+
+    /* Lead */
+    .lead {
+      font-size: 17px; color: #ccc; line-height: 1.9;
+      border-left: 3px solid var(--accent);
+      padding: 4px 20px;
+      margin-bottom: 36px;
+    }
+
+    /* Agent Cards */
+    .agent-cards {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      margin: 32px 0;
+    }
+    @media (max-width: 580px) { .agent-cards { grid-template-columns: 1fr; } }
+
+    .agent-card {
+      border-radius: 12px; padding: 22px;
+      border: 1px solid var(--border);
+    }
+    .agent-card.alpha {
+      background: var(--alpha-alpha);
+      border-color: rgba(255,107,53,0.25);
+    }
+    .agent-card.beta {
+      background: var(--beta-alpha);
+      border-color: rgba(108,99,255,0.25);
+    }
+    .agent-card-label {
+      font-size: 28px; font-weight: 700; margin-bottom: 4px;
+    }
+    .agent-card.alpha .agent-card-label { color: var(--alpha-color); }
+    .agent-card.beta .agent-card-label { color: var(--beta-color); }
+    .agent-card-name { font-size: 13px; font-weight: 600; color: #ddd; margin-bottom: 2px; }
+    .agent-card-role { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+    .agent-card-q {
+      font-size: 13px; font-style: italic;
+      line-height: 1.6; color: #aaa;
+    }
+    .agent-card.alpha .agent-card-q { color: rgba(255,139,90,0.9); }
+    .agent-card.beta .agent-card-q { color: rgba(139,133,255,0.9); }
+
+    /* Comparison Table */
+    .compare-table { width: 100%; border-collapse: collapse; margin: 28px 0; font-size: 13px; }
+    .compare-table th {
+      padding: 10px 14px; text-align: left;
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--text-faint); border-bottom: 1px solid var(--border);
+    }
+    .compare-table td { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table td:first-child { color: var(--text-muted); font-size: 12px; }
+    .compare-table td.alpha-val { color: rgba(255,139,90,0.9); }
+    .compare-table td.beta-val { color: rgba(139,133,255,0.9); }
+
+    /* Code block */
+    pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.65;
+      margin: 24px 0;
+    }
+    code { font-family: var(--mono); }
+    p code, li code {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 3px; padding: 1px 6px;
+      font-size: 13px; color: #c9d1d9;
+    }
+
+    /* Info / Tip / Result boxes */
+    .box {
+      border-radius: 8px; padding: 18px 22px; margin: 28px 0;
+      font-size: 14px; line-height: 1.7;
+    }
+    .box-label {
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      font-weight: 600; margin-bottom: 8px;
+    }
+    .box.info { background: rgba(0,120,255,0.07); border: 1px solid rgba(0,120,255,0.2); }
+    .box.info .box-label { color: #4da6ff; }
+    .box.tip { background: var(--accent-alpha); border: 1px solid rgba(0,255,136,0.2); }
+    .box.tip .box-label { color: var(--accent); }
+    .box.warning { background: rgba(255,200,0,0.06); border: 1px solid rgba(255,200,0,0.2); }
+    .box.warning .box-label { color: #ffc800; }
+    .box.result-alpha { background: var(--alpha-alpha); border: 1px solid rgba(255,107,53,0.3); }
+    .box.result-alpha .box-label { color: var(--alpha-color); }
+    .box.result-beta { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.25); }
+    .box.result-beta .box-label { color: #ef4444; }
+
+    /* List */
+    .post-body ul, .post-body ol {
+      padding-left: 20px; margin-bottom: 24px;
+    }
+    .post-body li { margin-bottom: 8px; color: var(--text); line-height: 1.7; }
+    .post-body li::marker { color: var(--accent); }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    /* Quote */
+    blockquote {
+      border-left: 3px solid var(--text-faint);
+      padding: 2px 20px;
+      margin: 28px 0;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 15px;
+    }
+
+    /* Doc structure */
+    .doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+    @media (max-width: 580px) { .doc-grid { grid-template-columns: 1fr; } }
+    .doc-col { border-radius: 8px; padding: 18px; border: 1px solid var(--border); background: var(--surface); }
+    .doc-col-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; font-weight: 600; }
+    .doc-col.alpha-doc .doc-col-title { color: var(--alpha-color); }
+    .doc-col.beta-doc .doc-col-title { color: var(--beta-color); }
+    .doc-col ol { padding-left: 18px; }
+    .doc-col li { font-size: 12px; color: #aaa; margin-bottom: 7px; }
+    .doc-col li::marker { color: var(--text-faint); }
+
+    /* Insight quote */
+    .insight {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      text-align: center;
+    }
+    .insight p {
+      font-family: var(--serif);
+      font-size: 20px;
+      line-height: 1.7;
+      color: #ddd;
+      margin: 0;
+    }
+    .insight em { color: var(--accent); font-style: normal; }
+
+    /* Author */
+    .author-card {
+      display: flex; gap: 18px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      margin-top: 64px;
+    }
+    .author-avatar {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent-alpha); border: 1px solid rgba(0,255,136,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: var(--accent);
+    }
+    .author-info h4 { font-size: 14px; font-weight: 600; color: #eee; margin-bottom: 4px; }
+    .author-info p { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin: 0; }
+    .author-links { display: flex; gap: 12px; margin-top: 10px; }
+    .author-links a { font-size: 11px; color: var(--text-faint); text-decoration: none; letter-spacing: 1px; transition: color .2s; }
+    .author-links a:hover { color: var(--accent); }
+
+    /* Tags */
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 40px; }
+    .tag {
+      font-size: 11px; letter-spacing: 1px;
+      color: var(--text-faint);
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 10px;
+      text-transform: lowercase;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-faint);
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="../index.html" class="nav-logo">remzisahbaz</a>
+    <a href="../index.html" class="nav-back">← tüm yazılar</a>
+  </nav>
+
+  <div class="container">
+
+    <!-- ── HEADER ── -->
+    <header class="post-header">
+      <div class="post-tag">AI Agents · Karşılaştırma</div>
+      <h1 class="post-title">Aynı Problem, İki Zihinsel Model:<br/>Claude Code vs ChatGPT Codex</h1>
+      <p class="post-subtitle">
+        Bir SOAP entegrasyon görevini iki farklı AI coding agent'a verdim.
+        İkisi de "doğru" çözdü — ama birbirinden çok farklı sorular sorarak.
+      </p>
+      <div class="post-meta">
+        <span>Remzi Şahbaz</span>
+        <span class="dot">·</span>
+        <span>Mart 2026</span>
+        <span class="dot">·</span>
+        <span>~6 dk okuma</span>
+        <span class="dot">·</span>
+        <span>#AIAgents</span>
+      </div>
+    </header>
+
+    <!-- ── BODY ── -->
+    <article class="post-body">
+
+      <p class="lead">
+        İki popüler AI coding agent'a aynı görevi verdim. İkisi de çalışan kod üretti.
+        Ama biri "Bu yapıyı nerede kullanabilirim?" diye sorarken, diğeri
+        "Bunu nasıl <em>güvenle</em> test ederim?" diye sordu.
+        Ortaya çıkan fark sadece kod kalitesiyle değil — zihinsel modelle ilgiliydi.
+      </p>
+
+      <h2>Görev: SOAP Entegrasyonunda Yeni Sınıfı Test Et</h2>
+
+      <p>
+        Projemizde daha önce hiç kullanılmamış bir <code>String, String</code> parametreli sınıf
+        vardı. Bu sınıfı SOAP web servisi çağrısında kullanmadan önce, bağımsız bir test ortamında
+        denememiz gerekiyordu. Yeterince özgün bir görev değil gibi görünebilir — ama iki agent'ın
+        bu göreve yaklaşımı, onların nasıl "düşündüğünü" net biçimde ortaya koydu.
+      </p>
+
+      <div class="box info">
+        <div class="box-label">Bağlam</div>
+        Her iki agent da aynı proje koduna erişti. Aynı bağlam, aynı sınıf,
+        aynı hedef. Fark tamamen agent'ın sormayı seçtiği soruda gizliydi.
+      </div>
+
+      <!-- Agent Cards -->
+      <div class="agent-cards">
+        <div class="agent-card alpha">
+          <div class="agent-card-label">α</div>
+          <div class="agent-card-name">Claude Code</div>
+          <div class="agent-card-role">Haritacı 🗺️</div>
+          <div class="agent-card-q">"Bu yapıyı nerede kullanabilirim?"</div>
+        </div>
+        <div class="agent-card beta">
+          <div class="agent-card-label">β</div>
+          <div class="agent-card-name">ChatGPT Codex</div>
+          <div class="agent-card-role">Risk Yöneticisi 🛡️</div>
+          <div class="agent-card-q">"Bunu nasıl güvenle test ederim?"</div>
+        </div>
+      </div>
+
+      <h2>Ürettikleri Zihinsel Modeller</h2>
+
+      <h3>α — Haritacı: Tüm Senaryoları Kapsıyor</h3>
+      <p>
+        Claude Code önce keşfe çıktı. Sınıfın projedeki tüm potansiyel kullanım
+        senaryolarını haritaladı: kayıt, güncelleme, sorgulama. Her birini bağımsız bir
+        metod olarak yazdı.
+      </p>
+      <p>
+        Ortaya 3 bağımsız metod çıktı. Her metod kendi bağlantısını açıp kapatıyor,
+        kendi hata yönetimini yapıyor. Nesne oluşturma inline, kurulum kodu metodun içinde.
+        Sonuç: olası tüm kullanım biçimlerini belgeleyen bir <strong>referans döküman</strong>.
+      </p>
+
+      <pre><code>// α yaklaşımı: Her senaryo bağımsız, her metod self-contained
+public void testCreateDocument() throws Exception {
+    // bağlantı kur, nesne oluştur, çağır, kapat
+}
+
+public void testInsertRow() throws Exception {
+    // bağlantı kur, nesne oluştur, çağır, kapat
+}
+
+public void testQueryDocument() throws Exception {
+    // bağlantı kur, nesne oluştur, çağır, kapat
+}</code></pre>
+
+      <h3>β — Risk Yöneticisi: Güvenli Tek Akış</h3>
+      <p>
+        ChatGPT Codex ise tek bir senaryoya odaklandı — ama önce simüle et, sonra
+        gerçek çağrı yap mantığıyla. Canlı servise dokunmadan doğrulama imkânı sundu.
+        Sorumluluklar iki ayrı <code>private</code> metoda bölünmüş.
+      </p>
+
+      <pre><code>// β yaklaşımı: Sorumluluklar ayrı, akış kontrollü
+private void simulateCall(String param1, String param2) {
+    // önce yerel simülasyon
+}
+
+private void executeRealCall(String param1, String param2) {
+    // doğrulandıktan sonra gerçek çağrı
+}</code></pre>
+
+      <h2>Döküman Yapıları: Ne Yazdıklarını Nasıl Belgelediler?</h2>
+
+      <p>
+        Her iki agent'tan da yaptıklarını açıklayan bir <code>.md</code> dosyası
+        oluşturmasını istedim. Bu noktada düşünce yapılarındaki fark en net biçimde
+        ortaya çıktı.
+      </p>
+
+      <div class="doc-grid">
+        <div class="doc-col alpha-doc">
+          <div class="doc-col-title">α · Claude Code</div>
+          <ol>
+            <li>Çalışma Amacı</li>
+            <li>İncelenen Proje Konumu</li>
+            <li>Test Edilecek Sınıf</li>
+            <li>Web Servisinde Kullanım Akışı</li>
+            <li>Oluşturulan Test Sınıfı</li>
+            <li>Çalıştırma Mantığı</li>
+            <li>Git Durumu & Ek Not</li>
+          </ol>
+        </div>
+        <div class="doc-col beta-doc">
+          <div class="doc-col-title">β · ChatGPT Codex</div>
+          <ol>
+            <li>Genel Bakış</li>
+            <li>Kaynak Sınıflar</li>
+            <li>Hangi Sınıflarda Kullanılabilir</li>
+            <li>Web Servis Bağlantısı</li>
+            <li>Test & Üretim Paketleri</li>
+            <li>Metodların İncelenmesi</li>
+            <li>Build & Deploy & Test Ortamı</li>
+          </ol>
+        </div>
+      </div>
+
+      <p>
+        α'nın dökümanı <em>ne yaptığını</em> anlatıyor — bir uygulama günlüğü gibi.
+        β'nın dökümanı ise <em>sistemi</em> anlatıyor — bir mimari doküman gibi.
+        İkisi de değerli, ama farklı sorulara cevap veriyor.
+      </p>
+
+      <h2>Asıl Test: Yazdıkları Kodu Çalıştırabildiler mi?</h2>
+
+      <p>
+        Kodu üretmek bir şey, çalıştırmak başka. Her iki agent'tan da yazdıkları
+        test sınıfını derleme + çalıştırma aşamasına kadar götürmesini istedim.
+      </p>
+
+      <div class="box result-alpha">
+        <div class="box-label">✅ α · Claude Code — Başardı</div>
+        Başlangıçta test çalışmadı. Hataları tespit etti, nedenini analiz etti,
+        çözüm üretti ve testi başarıyla çalıştırdı. Birden fazla test case'e sahip
+        kullanılabilir bir sonuç ortaya çıktı.
+      </div>
+
+      <div class="box result-beta">
+        <div class="box-label">❌ β · ChatGPT Codex — Başaramadı</div>
+        Başlangıçta test çalışmadı. Hataları fark etti ve çözüm aradı — ama bir noktada
+        döngüye girdi. Kota tükenmeden önce süreci kesmek zorunda kaldım. Tek bir senaryoya
+        odaklanan yaklaşım, hata giderme aşamasında yeterli esneklik sağlayamadı.
+      </div>
+
+      <h2>Karşılaştırma Özeti</h2>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Kriter</th>
+            <th>α · Claude Code</th>
+            <th>β · ChatGPT Codex</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Zihinsel Model</td>
+            <td class="alpha-val">Haritacı</td>
+            <td class="beta-val">Risk Yöneticisi</td>
+          </tr>
+          <tr>
+            <td>Temel Soru</td>
+            <td class="alpha-val">"Nerede kullanabilirim?"</td>
+            <td class="beta-val">"Nasıl güvenle test ederim?"</td>
+          </tr>
+          <tr>
+            <td>Kod Yapısı</td>
+            <td class="alpha-val">3 bağımsız metod</td>
+            <td class="beta-val">1 akış, 2 private metod</td>
+          </tr>
+          <tr>
+            <td>Kapsam</td>
+            <td class="alpha-val">Kayıt + güncelleme + sorgu</td>
+            <td class="beta-val">Tek senaryo (simüle + gerçek)</td>
+          </tr>
+          <tr>
+            <td>Döküman Tonu</td>
+            <td class="alpha-val">Uygulama günlüğü</td>
+            <td class="beta-val">Mimari döküman</td>
+          </tr>
+          <tr>
+            <td>Test Çalıştı mı?</td>
+            <td class="alpha-val">✅ Evet</td>
+            <td class="beta-val">❌ Hayır</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="box tip">
+        <div class="box-label">Not</div>
+        "Test çalışmadı" sonucu β'nın genel yetersizliğini değil, bu spesifik görevde
+        self-correction döngüsündeki kırılganlığını gösteriyor. Bağlam değiştikçe
+        sonuçlar değişebilir.
+      </div>
+
+      <hr class="divider" />
+
+      <h2>Ne Öğrendik?</h2>
+
+      <p>
+        Bu deneyin asıl çıktısı ne α'nın "kazandığı" ne de β'nın "kaybettiği"
+        sonucu. Asıl çıktı şu:
+      </p>
+
+      <ul>
+        <li>
+          <strong>Agent'lar soru sormadan önce bir model kuruyor.</strong>
+          Hangi soruyu sorduğu, ürettiği çözümün şeklini belirliyor.
+        </li>
+        <li>
+          <strong>Kapsam ≠ Derinlik.</strong>
+          α daha geniş haritaladı. β daha derinden indedi. Hangisi doğru?
+          İkisi de — farklı senaryolarda.
+        </li>
+        <li>
+          <strong>Döküman kalitesi, kod kalitesinden bağımsız.</strong>
+          β daha iyi bir mimari döküman yazdı; ama kodu çalıştıramadı.
+        </li>
+        <li>
+          <strong>Hata giderme, üretim yetenekten farklı bir beceri.</strong>
+          Aynı kodu üretmek yeterli değil — hatayı tespit edip düzeltebilmek gerekiyor.
+        </li>
+      </ul>
+
+      <div class="insight">
+        <p>
+          Agent'lar artık sadece kod üretmiyor.<br/>
+          <em>Zihinsel model üretiyor.</em><br/>
+          <span style="font-size:16px; color: var(--text-muted);">
+            Doğru soru sormak, doğru kod yazmak kadar önemli.
+          </span>
+        </p>
+      </div>
+
+      <blockquote>
+        Bir problemi çözmek için kaç farklı zihinsel modelle yaklaşılabilir?
+        Bu deneyin en değerli tarafı cevap değil, sorunun kendisi oldu.
+      </blockquote>
+
+      <p>
+        Bir sonraki adımda bu iki yaklaşımı daha karmaşık entegrasyon senaryolarında
+        tekrar test etmeyi planlıyorum. Agent'ların zihinsel modellerinin nasıl
+        evrildiğini takip etmek, bir yazılım mühendisi olarak toolset'imi nasıl
+        kullandığımı şekillendiriyor.
+      </p>
+
+      <!-- Tags -->
+      <div class="tags">
+        <span class="tag">#aiagents</span>
+        <span class="tag">#claudecode</span>
+        <span class="tag">#chatgptcodex</span>
+        <span class="tag">#softwareengineering</span>
+        <span class="tag">#llm</span>
+        <span class="tag">#aievaluation</span>
+        <span class="tag">#javaspring</span>
+        <span class="tag">#soapwebservice</span>
+      </div>
+
+      <!-- Author -->
+      <div class="author-card">
+        <div class="author-avatar">R</div>
+        <div class="author-info">
+          <h4>Remzi Şahbaz</h4>
+          <p>
+            Java & Spring Boot odaklı backend developer. Mikroservisler,
+            kurumsal entegrasyonlar ve AI-assisted engineering üzerine yazıyor.
+          </p>
+          <div class="author-links">
+            <a href="https://github.com/remzisahbaz" target="_blank">github</a>
+            <a href="https://linkedin.com/in/remzisahbaz090" target="_blank">linkedin</a>
+            <a href="mailto:sahbazremzii@gmail.com">email</a>
+          </div>
+        </div>
+      </div>
+
+    </article>
+  </div>
+
+  <footer>
+    <p>© 2026 remzisahbaz.github.io — Made with curiosity &amp; monospace fonts</p>
+  </footer>
+
+</body>
+</html>
